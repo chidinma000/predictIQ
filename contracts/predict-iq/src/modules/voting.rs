@@ -1,7 +1,8 @@
 use crate::errors::ErrorCode;
 use crate::modules::markets;
 use crate::types::{ConfigKey, LockedTokens, MarketStatus, Vote};
-use soroban_sdk::{contracttype, token, Address, Env, IntoVal, Symbol, Val};
+use soroban_sdk::{contracttype, token, Address, Env, Symbol, Val};
+use soroban_sdk::{contracttype, token, Address, Env, Symbol};
 
 #[contracttype]
 pub enum DataKey {
@@ -57,6 +58,7 @@ pub fn cast_vote(
                 return Err(ErrorCode::InsufficientVotingWeight);
             }
 
+            e.current_contract_address().require_auth();
             token_client.transfer(&voter, &e.current_contract_address(), &weight);
 
             // Track per-user locked amount so multiple users don't collide
@@ -107,10 +109,21 @@ fn try_get_balance_at(
     account: &Address,
     ledger: u32,
 ) -> Result<i128, ErrorCode> {
-    let args = (account.clone(), ledger).into_val(e);
+    use soroban_sdk::{IntoVal, TryFromVal};
+    let args: soroban_sdk::Vec<Val> =
+        soroban_sdk::vec![e, account.clone().into_val(e), ledger.into_val(e)];
 
     match e.try_invoke_contract::<Val, ErrorCode>(token, &Symbol::new(e, "balance_at"), args) {
         Ok(Ok(val)) => i128::try_from_val(e, &val).map_err(|_| ErrorCode::OracleFailure),
+    use soroban_sdk::{IntoVal, Val};
+    let args: soroban_sdk::Vec<Val> = soroban_sdk::vec![
+        e,
+        account.clone().into_val(e),
+        ledger.into_val(e),
+    ];
+
+    match e.try_invoke_contract::<i128, ErrorCode>(token, &Symbol::new(e, "balance_at"), args) {
+        Ok(Ok(balance)) => Ok(balance),
         _ => Err(ErrorCode::OracleFailure),
     }
 }
@@ -133,6 +146,10 @@ pub fn unlock_tokens(e: &Env, voter: Address, market_id: u64) -> Result<(), Erro
         .get(&lock_key)
         .ok_or(ErrorCode::BetNotFound)?;
 
+    if e.ledger().timestamp() < locked.unlock_time {
+        return Err(ErrorCode::TimelockActive);
+    }
+
     let gov_token: Address = e
         .storage()
         .instance()
@@ -140,6 +157,7 @@ pub fn unlock_tokens(e: &Env, voter: Address, market_id: u64) -> Result<(), Erro
         .ok_or(ErrorCode::GovernanceTokenNotSet)?;
 
     let token_client = token::Client::new(e, &gov_token);
+    e.current_contract_address().require_auth();
     token_client.transfer(&e.current_contract_address(), &voter, &locked.amount);
 
     e.storage().persistent().remove(&lock_key);

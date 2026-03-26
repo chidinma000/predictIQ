@@ -1,12 +1,13 @@
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Vec};
 
-mod errors;
+pub mod errors;
 mod modules;
 mod test;
 pub mod types;
 
-use crate::errors::ErrorCode;
+pub use errors::ErrorCode;
+
 use crate::modules::admin;
 use crate::types::{CircuitBreakerState, ConfigKey, Guardian, UpgradeStats};
 
@@ -15,23 +16,27 @@ pub struct PredictIQ;
 
 #[contractimpl]
 impl PredictIQ {
-    /// Issue #28: Only the deployer can initialize the contract.
-    /// Guardians should be initialized via initialize_guardians in the same transaction.
-    pub fn initialize(e: Env, admin_addr: Address, base_fee: i128) -> Result<(), ErrorCode> {
+    pub fn initialize(
+        e: Env,
+        admin: Address,
+        base_fee: i128,
+        guardians: Vec<crate::types::Guardian>,
+    ) -> Result<(), ErrorCode> {
         if e.storage().persistent().has(&ConfigKey::Admin) {
             return Err(ErrorCode::AlreadyInitialized);
         }
 
-        // Issue #28: Ensure only the deployer can call initialize
-        admin_addr.require_auth();
+        if guardians.is_empty() {
+            return Err(ErrorCode::NotAuthorized);
+        }
 
-        admin::set_admin(&e, admin_addr);
+        admin::set_admin(&e, admin);
         e.storage().persistent().set(&ConfigKey::BaseFee, &base_fee);
         e.storage().persistent().set(
             &ConfigKey::CircuitBreakerState,
             &CircuitBreakerState::Closed,
         );
-
+        crate::modules::governance::initialize_guardians(&e, guardians)?;
         Ok(())
     }
 
@@ -87,6 +92,16 @@ impl PredictIQ {
         )
     }
 
+    pub fn claim_winnings(e: Env, bettor: Address, market_id: u64) -> Result<i128, ErrorCode> {
+        crate::modules::bets::claim_winnings(&e, bettor, market_id)
+    }
+
+    pub fn withdraw_refund(e: Env, bettor: Address, market_id: u64) -> Result<i128, ErrorCode> {
+        crate::modules::cancellation::withdraw_refund(&e, bettor, market_id)
+    }
+
+    pub fn cancel_market_admin(e: Env, market_id: u64) -> Result<(), ErrorCode> {
+        crate::modules::cancellation::cancel_market_admin(&e, market_id)
     pub fn claim_winnings(
         e: Env,
         bettor: Address,
@@ -103,7 +118,7 @@ impl PredictIQ {
         outcome: u32,
         token_address: Address,
     ) -> Result<i128, ErrorCode> {
-        crate::modules::bets::withdraw_refund(&e, bettor, market_id, outcome, token_address)
+        crate::modules::bets::withdraw_refund(&e, bettor, market_id, token_address)
     }
 
     pub fn get_market(e: Env, id: u64) -> Option<crate::types::Market> {
@@ -214,6 +229,14 @@ impl PredictIQ {
         crate::modules::disputes::get_resolution_metrics(&e, market_id, outcome)
     }
 
+    pub fn set_max_push_payout_winners(e: Env, threshold: u32) -> Result<(), ErrorCode> {
+        crate::modules::disputes::set_max_push_payout_winners(&e, threshold)
+    }
+
+    pub fn get_max_push_payout_winners(e: Env) -> u32 {
+        crate::modules::disputes::get_max_push_payout_winners(&e)
+    }
+
     pub fn set_creator_reputation(
         e: Env,
         creator: Address,
@@ -242,15 +265,7 @@ impl PredictIQ {
         crate::modules::markets::release_creation_deposit(&e, market_id, native_token)
     }
 
-    // Governance
-    pub fn initialize_guardians(
-        e: Env,
-        guardians: Vec<crate::types::Guardian>,
-    ) -> Result<(), ErrorCode> {
-        crate::modules::admin::require_admin(&e)?;
-        crate::modules::governance::initialize_guardians(&e, guardians)
-    }
-
+    // Governance and Upgrade Functions
     pub fn add_guardian(e: Env, guardian: crate::types::Guardian) -> Result<(), ErrorCode> {
         crate::modules::governance::add_guardian(&e, guardian)
     }
@@ -263,7 +278,6 @@ impl PredictIQ {
         crate::modules::governance::get_guardians(&e)
     }
 
-    /// Issue #32: wasm_hash is now BytesN<32> instead of String.
     pub fn initiate_upgrade(e: Env, wasm_hash: BytesN<32>) -> Result<(), ErrorCode> {
         crate::modules::governance::initiate_upgrade(&e, wasm_hash)
     }
@@ -272,8 +286,7 @@ impl PredictIQ {
         crate::modules::governance::vote_for_upgrade(&e, voter, vote_for)
     }
 
-    /// Issue #18: Returns BytesN<32> and actually executes the WASM update.
-    pub fn execute_upgrade(e: Env) -> Result<BytesN<32>, ErrorCode> {
+    pub fn execute_upgrade(e: Env) -> Result<(), ErrorCode> {
         crate::modules::governance::execute_upgrade(&e)
     }
 
@@ -298,5 +311,15 @@ impl PredictIQ {
     /// Issue #47: Permissionless prune after grace period.
     pub fn prune_market(e: Env, market_id: u64) -> Result<(), ErrorCode> {
         crate::modules::markets::prune_market(&e, market_id)
+    }
+
+    /// Get the minimum bet amount threshold
+    pub fn get_minimum_bet_amount(e: Env) -> i128 {
+        crate::modules::bets::get_minimum_bet_amount(&e)
+    }
+
+    /// Set the minimum bet amount threshold (admin only)
+    pub fn set_minimum_bet_amount(e: Env, amount: i128) -> Result<(), ErrorCode> {
+        crate::modules::bets::set_minimum_bet_amount(&e, amount)
     }
 }

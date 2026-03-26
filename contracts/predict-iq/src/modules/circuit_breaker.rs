@@ -77,10 +77,7 @@ pub fn maybe_recover(e: &Env) {
 pub fn require_closed(e: &Env) -> Result<(), ErrorCode> {
     maybe_recover(e);
     let state = get_state(e);
-    if state == CircuitBreakerState::Open {
-        return Err(ErrorCode::CircuitBreakerOpen);
-    }
-    if state == CircuitBreakerState::Paused {
+    if state == CircuitBreakerState::Open || state == CircuitBreakerState::Paused {
         return Err(ErrorCode::ContractPaused);
     }
     Ok(())

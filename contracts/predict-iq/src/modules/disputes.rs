@@ -1,7 +1,7 @@
 use crate::errors::ErrorCode;
 use crate::modules::markets;
-use crate::types::MarketStatus;
-use soroban_sdk::{Address, Env};
+use crate::types::{ConfigKey, MarketStatus, PayoutMode};
+use soroban_sdk::{contracttype, Address, Env};
 
 #[derive(Clone)]
 pub struct ResolutionMetrics {
@@ -28,9 +28,9 @@ pub fn file_dispute(e: &Env, disciplinarian: Address, market_id: u64) -> Result<
     }
 
     market.status = MarketStatus::Disputed;
-    market.resolution_deadline += 86400 * 3;
-    // Issue: record dispute timestamp for resolution.rs
     market.dispute_timestamp = Some(e.ledger().timestamp());
+    // Extend resolution deadline for voting period
+    market.resolution_deadline += 86400 * 3; // 3 days extension
     let new_deadline = market.resolution_deadline;
 
     markets::update_market(e, market);
@@ -48,6 +48,17 @@ pub fn resolve_market(e: &Env, market_id: u64, winning_outcome: u32) -> Result<(
 
     if winning_outcome >= market.options.len() {
         return Err(ErrorCode::InvalidOutcome);
+    }
+
+    // Estimate winner count (in production, maintain a counter)
+    let estimated_winners = estimate_winner_count(e, market_id, winning_outcome);
+    let max_push_winners = get_max_push_payout_winners(e);
+
+    // Automatically select payout mode based on winner count
+    if estimated_winners > max_push_winners {
+        market.payout_mode = PayoutMode::Pull;
+    } else {
+        market.payout_mode = PayoutMode::Push;
     }
 
     market.status = MarketStatus::Resolved;
@@ -76,7 +87,41 @@ pub fn resolve_market(e: &Env, market_id: u64, winning_outcome: u32) -> Result<(
     Ok(())
 }
 
-/// Issue #24: Use actual winner_counts maintained during place_bet.
+pub fn set_max_push_payout_winners(e: &Env, threshold: u32) -> Result<(), ErrorCode> {
+    crate::modules::admin::require_admin(e)?;
+    e.storage()
+        .persistent()
+        .set(&ConfigKey::MaxPushPayoutWinners, &threshold);
+    e.storage().persistent().extend_ttl(
+        &ConfigKey::MaxPushPayoutWinners,
+        crate::types::GOV_TTL_LOW_THRESHOLD,
+        crate::types::GOV_TTL_HIGH_THRESHOLD,
+    );
+    Ok(())
+}
+
+pub fn get_max_push_payout_winners(e: &Env) -> u32 {
+    e.storage()
+        .persistent()
+        .get(&ConfigKey::MaxPushPayoutWinners)
+        .unwrap_or(crate::types::MAX_PUSH_PAYOUT_WINNERS)
+}
+
+// Helper function to estimate winner count without iterating all bets
+fn estimate_winner_count(e: &Env, market_id: u64, outcome: u32) -> u32 {
+    // In production, maintain a counter per outcome during bet placement
+    // For now, use the tally weight as a proxy
+    let tally = crate::modules::voting::get_tally(e, market_id, outcome);
+
+    // Rough estimate: assume average bet is 100 units
+    if tally > 0 {
+        (tally / 100).max(1) as u32
+    } else {
+        0
+    }
+}
+
+// Batch resolution metrics for monitoring
 pub fn get_resolution_metrics(e: &Env, market_id: u64, outcome: u32) -> ResolutionMetrics {
     let winner_count = markets::count_bets_for_outcome(e, market_id, outcome);
     let total_stake = match markets::get_market(e, market_id) {

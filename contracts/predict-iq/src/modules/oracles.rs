@@ -1,6 +1,7 @@
 use crate::errors::ErrorCode;
 use crate::types::OracleConfig;
-use soroban_sdk::{contracttype, symbol_short, Address, Env, Symbol};
+use soroban_sdk::{contracttype, Env, Symbol};
+use soroban_sdk::{contracttype, symbol_short, Env, Symbol};
 
 /// Issue #9: Key now includes oracle_id to support multi-oracle aggregation.
 #[contracttype]
@@ -37,10 +38,13 @@ pub fn validate_price(e: &Env, price: &PythPrice, config: &OracleConfig) -> Resu
         return Err(ErrorCode::StalePrice);
     }
 
-    // Issue #41: saturating_abs prevents overflow on i64::MIN
-    let price_abs = price.price.saturating_abs() as u64;
-    let max_conf_bps = config.max_confidence_bps.unwrap_or(200);
-    let max_conf = (price_abs * max_conf_bps) / 10000;
+    // Check confidence: conf should be < max_confidence_bps% of price
+    let price_abs = if price.price < 0 {
+        -price.price
+    } else {
+        price.price
+    } as u64;
+    let max_conf = (price_abs * config.max_confidence_bps as u64) / 10000;
 
     if price.conf > max_conf {
         return Err(ErrorCode::ConfidenceTooLow);

@@ -1,7 +1,6 @@
 [workspace]
 resolver = "2"
 members = ["contracts/*"]
-exclude = ["services/tts", "services/api"]
 
 [workspace.dependencies]
 soroban-sdk = "22.0.0"
@@ -13,6 +12,13 @@ debug = false
 panic = "abort"
 lto = true
 codegen-units = 1
+
+[profile.test]
+lto = false
+codegen-units = 16
+
+[profile.dev]
+lto = false
 
 [profile.release-with-logs]
 inherits = "release"

@@ -23,30 +23,24 @@ pub struct Market {
     pub winning_outcome: Option<u32>,
     pub oracle_config: OracleConfig,
     pub total_staked: i128,
-    /// Immutable after creation — set once in create_market (Issue #23).
-    pub payout_mode: PayoutMode,
+    pub payout_mode: PayoutMode, // Resolution-time mode flag; payouts are currently claimed via claim_winnings
     pub tier: MarketTier,
     pub creation_deposit: i128,
-    pub parent_id: u64,
-    pub parent_outcome_idx: u32,
-    pub resolved_at: Option<u64>,
-    pub token_address: Address,
-    pub outcome_stakes: Map<u32, i128>,
-    pub pending_resolution_timestamp: Option<u64>,
-    pub dispute_snapshot_ledger: Option<u32>,
-    /// Timestamp when dispute was filed — used by resolution.rs (Issue #8).
-    pub dispute_timestamp: Option<u64>,
-    /// Total amount claimed so far — used to guard prune_market (Issue #17).
-    pub total_claimed: i128,
-    /// Actual winner count per outcome, maintained during place_bet (Issue #24).
-    pub winner_counts: Map<u32, u32>,
+    pub parent_id: u64,                 // 0 means no parent (independent market)
+    pub parent_outcome_idx: u32,        // Required outcome of parent market
+    pub resolved_at: Option<u64>,       // Timestamp when market was resolved (for TTL pruning)
+    pub token_address: Address,         // Token used for betting
+    pub outcome_stakes: Map<u32, i128>, // Stake per outcome
+    pub pending_resolution_timestamp: Option<u64>, // Timestamp when resolution was initiated
+    pub dispute_snapshot_ledger: Option<u32>, // Ledger sequence for snapshot voting
+    pub dispute_timestamp: Option<u64>, // Timestamp when dispute was filed
 }
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PayoutMode {
-    Push,
-    Pull,
+    Push, // Reserved compatibility flag; automatic push distribution is not implemented
+    Pull, // Active payout path: winners claim individually via claim_winnings
 }
 
 #[contracttype]
@@ -98,24 +92,18 @@ pub struct OracleConfig {
     pub oracle_address: Address,
     pub feed_id: String,
     pub min_responses: Option<u32>,
-    /// Maximum age of a price in seconds before it is considered stale.
-    /// None defaults to 3600 (1 hour).
-    pub max_staleness_seconds: Option<u64>,
-    /// Maximum confidence interval as basis points of price (e.g. 100 = 1%).
-    /// None defaults to 200 (2%).
-    pub max_confidence_bps: Option<u64>,
+    pub max_staleness_seconds: u64,
+    pub max_confidence_bps: u64,
+    pub min_responses: Option<u32>, // Optimized: None defaults to 1
+    pub max_staleness_seconds: i64, // Max age of price data in seconds
+    pub max_confidence_bps: u64,    // Max confidence interval in basis points
 }
 
-/// Issue #33: Named struct instead of raw tuple for upgrade vote stats.
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct UpgradeStats {
-    pub votes_for: u32,
-    pub votes_against: u32,
-}
-
-pub const MAX_PUSH_PAYOUT_WINNERS: u32 = 50;
-/// Hard cap on outcomes per market — bounds iteration cost in finalize_resolution.
+// Gas optimization constants
+pub const MAX_PUSH_PAYOUT_WINNERS: u32 = 50; // Winner-count threshold for mode selection metadata
+/// Hard cap on outcomes per market. Kept intentionally low to bound the
+/// iteration cost in `calculate_voting_outcome` (called from the permissionless
+/// `finalize_resolution`) and prevent gas-griefing / DoS attacks.
 pub const MAX_OUTCOMES_PER_MARKET: u32 = 32;
 
 #[contracttype]
@@ -131,10 +119,8 @@ pub enum ConfigKey {
     GuardianSet,
     PendingUpgrade,
     UpgradeVotes,
-    /// Issue #3: Was missing — used in voting.rs for governance token address.
     GovernanceToken,
-    /// Issue #13: Configurable timelock duration (seconds).
-    TimelockDuration,
+    MaxPushPayoutWinners,
 }
 
 #[contracttype]
