@@ -77,7 +77,7 @@ pub fn resolve_market(e: &Env, market_id: u64, winning_outcome: u32) -> Result<(
         market_id,
         admin,
         winning_outcome,
-        0, // Total payout tracked separately by indexer
+        market.total_staked, // Total payout is the entire pool
     );
 
     Ok(())
