@@ -13,7 +13,10 @@ fn setup_test_env() -> (Env, Address, soroban_sdk::Address, PredictIQClient<'sta
 
     let init_guardians = {
         let mut g = soroban_sdk::Vec::new(&e);
-        g.push_back(types::Guardian { address: Address::generate(&e), voting_power: 1 });
+        g.push_back(types::Guardian {
+            address: Address::generate(&e),
+            voting_power: 1,
+        });
         g
     };
     client.initialize(&admin, &100, &init_guardians);
@@ -82,8 +85,8 @@ fn test_market_creation_fails_without_deposit() {
             oracle_address: Address::generate(&e),
             feed_id: String::from_str(&e, "test"),
             min_responses: Some(1),
-        max_staleness_seconds: 3600,
-        max_confidence_bps: 200,
+            max_staleness_seconds: 3600,
+            max_confidence_bps: 200,
         },
         &types::MarketTier::Basic,
         &native_token,

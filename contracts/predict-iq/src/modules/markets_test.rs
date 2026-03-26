@@ -23,10 +23,7 @@ fn test_create_market_basic() {
 
     let options = Vec::from_array(
         &env,
-        [
-            String::from_str(&env, "Yes"),
-            String::from_str(&env, "No"),
-        ],
+        [String::from_str(&env, "Yes"), String::from_str(&env, "No")],
     );
 
     let oracle_config = OracleConfig {
@@ -134,10 +131,7 @@ fn test_create_market_deadline_in_past() {
 
     let options = Vec::from_array(
         &env,
-        [
-            String::from_str(&env, "Yes"),
-            String::from_str(&env, "No"),
-        ],
+        [String::from_str(&env, "Yes"), String::from_str(&env, "No")],
     );
 
     let oracle_config = OracleConfig {
@@ -172,10 +166,7 @@ fn test_create_market_resolution_before_deadline() {
 
     let options = Vec::from_array(
         &env,
-        [
-            String::from_str(&env, "Yes"),
-            String::from_str(&env, "No"),
-        ],
+        [String::from_str(&env, "Yes"), String::from_str(&env, "No")],
     );
 
     let oracle_config = OracleConfig {
@@ -210,10 +201,7 @@ fn test_market_id_increments() {
 
     let options = Vec::from_array(
         &env,
-        [
-            String::from_str(&env, "Yes"),
-            String::from_str(&env, "No"),
-        ],
+        [String::from_str(&env, "Yes"), String::from_str(&env, "No")],
     );
 
     let oracle_config = OracleConfig {
@@ -310,10 +298,7 @@ fn test_market_tiers() {
 
     let options = Vec::from_array(
         &env,
-        [
-            String::from_str(&env, "Yes"),
-            String::from_str(&env, "No"),
-        ],
+        [String::from_str(&env, "Yes"), String::from_str(&env, "No")],
     );
 
     let oracle_config = OracleConfig {
@@ -366,7 +351,10 @@ fn test_market_tiers() {
         &0,
     );
 
-    assert_eq!(client.get_market(&basic_id).unwrap().tier, MarketTier::Basic);
+    assert_eq!(
+        client.get_market(&basic_id).unwrap().tier,
+        MarketTier::Basic
+    );
     assert_eq!(client.get_market(&pro_id).unwrap().tier, MarketTier::Pro);
     assert_eq!(
         client.get_market(&inst_id).unwrap().tier,
@@ -380,10 +368,7 @@ fn test_prune_market_before_grace_period() {
 
     let options = Vec::from_array(
         &env,
-        [
-            String::from_str(&env, "Yes"),
-            String::from_str(&env, "No"),
-        ],
+        [String::from_str(&env, "Yes"), String::from_str(&env, "No")],
     );
 
     let oracle_config = OracleConfig {
@@ -423,10 +408,7 @@ fn test_prune_market_after_grace_period() {
 
     let options = Vec::from_array(
         &env,
-        [
-            String::from_str(&env, "Yes"),
-            String::from_str(&env, "No"),
-        ],
+        [String::from_str(&env, "Yes"), String::from_str(&env, "No")],
     );
 
     let oracle_config = OracleConfig {
@@ -469,10 +451,7 @@ fn test_prune_unresolved_market_fails() {
 
     let options = Vec::from_array(
         &env,
-        [
-            String::from_str(&env, "Yes"),
-            String::from_str(&env, "No"),
-        ],
+        [String::from_str(&env, "Yes"), String::from_str(&env, "No")],
     );
 
     let oracle_config = OracleConfig {
