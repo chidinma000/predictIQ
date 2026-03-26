@@ -2,7 +2,7 @@
 use crate::errors::ErrorCode;
 use crate::types::{CreatorReputation, MarketStatus, MarketTier, OracleConfig};
 use crate::{PredictIQ, PredictIQClient};
-use soroban_sdk::{testutils::Address as _, Address, Env, String, Vec};
+use soroban_sdk::{testutils::{Address as _, Ledger as _}, Address, Env, String, Vec};
 
 fn setup() -> (Env, PredictIQClient<'static>, Address) {
     let env = Env::default();
@@ -32,6 +32,7 @@ fn test_create_market_basic() {
         min_responses: Some(1),
         max_staleness_seconds: 3600,
         max_confidence_bps: 200,
+        max_confidence_bps: 100,
     };
 
     let token = Address::generate(&env);
@@ -68,6 +69,7 @@ fn test_create_market_with_single_option_fails() {
         min_responses: Some(1),
         max_staleness_seconds: 3600,
         max_confidence_bps: 200,
+        max_confidence_bps: 100,
     };
 
     let token = Address::generate(&env);
@@ -93,8 +95,8 @@ fn test_create_market_with_too_many_outcomes() {
     let (env, client, admin) = setup();
 
     let mut options = Vec::new(&env);
-    for i in 0..101 {
-        options.push_back(String::from_str(&env, &format!("Option{}", i)));
+    for _i in 0..101 {
+        options.push_back(String::from_str(&env, "x"));
     }
 
     let oracle_config = OracleConfig {
@@ -103,6 +105,7 @@ fn test_create_market_with_too_many_outcomes() {
         min_responses: Some(1),
         max_staleness_seconds: 3600,
         max_confidence_bps: 200,
+        max_confidence_bps: 100,
     };
 
     let token = Address::generate(&env);
@@ -140,6 +143,7 @@ fn test_create_market_deadline_in_past() {
         min_responses: Some(1),
         max_staleness_seconds: 3600,
         max_confidence_bps: 200,
+        max_confidence_bps: 100,
     };
 
     let token = Address::generate(&env);
@@ -157,7 +161,7 @@ fn test_create_market_deadline_in_past() {
         &0,
     );
 
-    assert_eq!(result, Err(Ok(ErrorCode::InvalidDeadline)));
+    assert_eq!(result, Err(Ok(ErrorCode::DeadlinePassed)));
 }
 
 #[test]
@@ -175,6 +179,7 @@ fn test_create_market_resolution_before_deadline() {
         min_responses: Some(1),
         max_staleness_seconds: 3600,
         max_confidence_bps: 200,
+        max_confidence_bps: 100,
     };
 
     let token = Address::generate(&env);
@@ -192,7 +197,7 @@ fn test_create_market_resolution_before_deadline() {
         &0,
     );
 
-    assert_eq!(result, Err(Ok(ErrorCode::InvalidDeadline)));
+    assert_eq!(result, Err(Ok(ErrorCode::DeadlinePassed)));
 }
 
 #[test]
@@ -210,6 +215,7 @@ fn test_market_id_increments() {
         min_responses: Some(1),
         max_staleness_seconds: 3600,
         max_confidence_bps: 200,
+        max_confidence_bps: 100,
     };
 
     let token = Address::generate(&env);
@@ -307,6 +313,7 @@ fn test_market_tiers() {
         min_responses: Some(1),
         max_staleness_seconds: 3600,
         max_confidence_bps: 200,
+        max_confidence_bps: 100,
     };
 
     let token = Address::generate(&env);
@@ -375,6 +382,8 @@ fn test_prune_market_before_grace_period() {
         oracle_address: Address::generate(&env),
         feed_id: String::from_str(&env, "test"),
         min_responses: Some(1),
+        max_staleness_seconds: 3600,
+        max_confidence_bps: 100,
     };
 
     let token = Address::generate(&env);
@@ -399,7 +408,7 @@ fn test_prune_market_before_grace_period() {
 
     // Try to prune immediately (before 30 days)
     let result = client.try_prune_market(&market_id);
-    assert_eq!(result, Err(Ok(ErrorCode::GracePeriodActive)));
+    assert_eq!(result, Err(Ok(ErrorCode::MarketStillActive)));
 }
 
 #[test]
@@ -415,6 +424,8 @@ fn test_prune_market_after_grace_period() {
         oracle_address: Address::generate(&env),
         feed_id: String::from_str(&env, "test"),
         min_responses: Some(1),
+        max_staleness_seconds: 3600,
+        max_confidence_bps: 100,
     };
 
     let token = Address::generate(&env);
@@ -458,6 +469,8 @@ fn test_prune_unresolved_market_fails() {
         oracle_address: Address::generate(&env),
         feed_id: String::from_str(&env, "test"),
         min_responses: Some(1),
+        max_staleness_seconds: 3600,
+        max_confidence_bps: 100,
     };
 
     let token = Address::generate(&env);

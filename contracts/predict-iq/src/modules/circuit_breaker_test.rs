@@ -67,6 +67,7 @@ fn test_pause_blocks_operations() {
         min_responses: Some(1),
         max_staleness_seconds: 3600,
         max_confidence_bps: 200,
+        max_confidence_bps: 100,
     };
 
     let token = Address::generate(&env);
@@ -109,6 +110,7 @@ fn test_unpause_allows_operations() {
         min_responses: Some(1),
         max_staleness_seconds: 3600,
         max_confidence_bps: 200,
+        max_confidence_bps: 100,
     };
 
     let token = Address::generate(&env);
@@ -174,6 +176,7 @@ fn test_require_closed_when_open() {
         min_responses: Some(1),
         max_staleness_seconds: 3600,
         max_confidence_bps: 200,
+        max_confidence_bps: 100,
     };
 
     let token = Address::generate(&env);
