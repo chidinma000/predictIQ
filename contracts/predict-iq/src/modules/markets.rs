@@ -107,6 +107,7 @@ pub fn create_market(
         outcome_stakes: soroban_sdk::Map::new(e),
         pending_resolution_timestamp: None,
         dispute_snapshot_ledger: None,
+        dispute_timestamp: None,
     };
 
     e.storage()

@@ -1,16 +1,17 @@
 #![cfg(test)]
 use crate::errors::ErrorCode;
-use crate::types::{BetKey, Market, MarketStatus, MarketTier, OracleConfig};
+use crate::types::{MarketStatus, MarketTier, OracleConfig};
 use crate::{PredictIQ, PredictIQClient};
 use soroban_sdk::{
-    testutils::Address as _, token, Address, Env, String, Vec,
+    testutils::{Address as _, Ledger},
+    token, Address, Env, String, Vec,
 };
 
 fn setup_test_with_token() -> (Env, PredictIQClient<'static>, Address, Address, Address) {
     let env = Env::default();
     env.mock_all_auths();
 
-    let contract_id = env.register_contract(None, PredictIQ);
+    let contract_id = env.register(PredictIQ, ());
     let client = PredictIQClient::new(&env, &contract_id);
 
     let admin = Address::generate(&env);
@@ -45,6 +46,8 @@ fn create_simple_market(
         oracle_address: Address::generate(env),
         feed_id: String::from_str(env, "test"),
         min_responses: Some(1),
+        max_staleness_seconds: 3600,
+        max_confidence_bps: 200,
     };
 
     client.create_market(
@@ -65,7 +68,7 @@ fn create_simple_market(
 fn test_place_bet_success() {
     let (env, client, _admin, user, token) = setup_test_with_token();
 
-    env.ledger().with_mut(|li| li.timestamp = 500);
+    env.ledger().set_timestamp(500);
 
     let market_id = create_simple_market(&client, &env, &user, &token);
 
@@ -77,7 +80,7 @@ fn test_place_bet_success() {
 fn test_place_bet_zero_amount() {
     let (env, client, _admin, user, token) = setup_test_with_token();
 
-    env.ledger().with_mut(|li| li.timestamp = 500);
+    env.ledger().set_timestamp(500);
 
     let market_id = create_simple_market(&client, &env, &user, &token);
 
@@ -89,7 +92,7 @@ fn test_place_bet_zero_amount() {
 fn test_place_bet_negative_amount() {
     let (env, client, _admin, user, token) = setup_test_with_token();
 
-    env.ledger().with_mut(|li| li.timestamp = 500);
+    env.ledger().set_timestamp(500);
 
     let market_id = create_simple_market(&client, &env, &user, &token);
 
@@ -101,7 +104,7 @@ fn test_place_bet_negative_amount() {
 fn test_place_bet_invalid_outcome() {
     let (env, client, _admin, user, token) = setup_test_with_token();
 
-    env.ledger().with_mut(|li| li.timestamp = 500);
+    env.ledger().set_timestamp(500);
 
     let market_id = create_simple_market(&client, &env, &user, &token);
 
@@ -114,12 +117,12 @@ fn test_place_bet_invalid_outcome() {
 fn test_place_bet_after_deadline() {
     let (env, client, _admin, user, token) = setup_test_with_token();
 
-    env.ledger().with_mut(|li| li.timestamp = 500);
+    env.ledger().set_timestamp(500);
 
     let market_id = create_simple_market(&client, &env, &user, &token);
 
     // Advance time past deadline
-    env.ledger().with_mut(|li| li.timestamp = 1500);
+    env.ledger().set_timestamp(1500);
 
     let result = client.try_place_bet(&user, &market_id, &0, &1000, &token, &None);
     assert_eq!(result, Err(Ok(ErrorCode::MarketClosed)));
@@ -129,7 +132,7 @@ fn test_place_bet_after_deadline() {
 fn test_place_bet_on_resolved_market() {
     let (env, client, _admin, user, token) = setup_test_with_token();
 
-    env.ledger().with_mut(|li| li.timestamp = 500);
+    env.ledger().set_timestamp(500);
 
     let market_id = create_simple_market(&client, &env, &user, &token);
 
@@ -144,7 +147,7 @@ fn test_place_bet_on_resolved_market() {
 fn test_place_multiple_bets_same_outcome() {
     let (env, client, _admin, user, token) = setup_test_with_token();
 
-    env.ledger().with_mut(|li| li.timestamp = 500);
+    env.ledger().set_timestamp(500);
 
     let market_id = create_simple_market(&client, &env, &user, &token);
 
@@ -158,7 +161,7 @@ fn test_place_multiple_bets_same_outcome() {
 fn test_place_bets_different_outcomes() {
     let (env, client, _admin, user, token) = setup_test_with_token();
 
-    env.ledger().with_mut(|li| li.timestamp = 500);
+    env.ledger().set_timestamp(500);
 
     let market_id = create_simple_market(&client, &env, &user, &token);
 
@@ -172,7 +175,7 @@ fn test_place_bets_different_outcomes() {
 fn test_claim_winnings_success() {
     let (env, client, _admin, user, token) = setup_test_with_token();
 
-    env.ledger().with_mut(|li| li.timestamp = 500);
+    env.ledger().set_timestamp(500);
 
     let market_id = create_simple_market(&client, &env, &user, &token);
 
@@ -181,7 +184,7 @@ fn test_claim_winnings_success() {
     // Resolve market with outcome 0 (user wins)
     client.resolve_market(&market_id, &0);
 
-    let result = client.try_claim_winnings(&user, &market_id, &token);
+    let result = client.try_claim_winnings(&user, &market_id);
     assert!(result.is_ok());
 }
 
@@ -189,7 +192,7 @@ fn test_claim_winnings_success() {
 fn test_claim_winnings_losing_bet() {
     let (env, client, _admin, user, token) = setup_test_with_token();
 
-    env.ledger().with_mut(|li| li.timestamp = 500);
+    env.ledger().set_timestamp(500);
 
     let market_id = create_simple_market(&client, &env, &user, &token);
 
@@ -198,7 +201,7 @@ fn test_claim_winnings_losing_bet() {
     // Resolve market with outcome 1 (user loses)
     client.resolve_market(&market_id, &1);
 
-    let result = client.try_claim_winnings(&user, &market_id, &token);
+    let result = client.try_claim_winnings(&user, &market_id);
     assert_eq!(result, Err(Ok(ErrorCode::NoWinnings)));
 }
 
@@ -206,13 +209,13 @@ fn test_claim_winnings_losing_bet() {
 fn test_claim_winnings_before_resolution() {
     let (env, client, _admin, user, token) = setup_test_with_token();
 
-    env.ledger().with_mut(|li| li.timestamp = 500);
+    env.ledger().set_timestamp(500);
 
     let market_id = create_simple_market(&client, &env, &user, &token);
 
     client.place_bet(&user, &market_id, &0, &1000, &token, &None);
 
-    let result = client.try_claim_winnings(&user, &market_id, &token);
+    let result = client.try_claim_winnings(&user, &market_id);
     assert_eq!(result, Err(Ok(ErrorCode::MarketNotResolved)));
 }
 
@@ -220,31 +223,32 @@ fn test_claim_winnings_before_resolution() {
 fn test_claim_winnings_twice() {
     let (env, client, _admin, user, token) = setup_test_with_token();
 
-    env.ledger().with_mut(|li| li.timestamp = 500);
+    env.ledger().set_timestamp(500);
 
     let market_id = create_simple_market(&client, &env, &user, &token);
 
     client.place_bet(&user, &market_id, &0, &1000, &token, &None);
     client.resolve_market(&market_id, &0);
 
-    client.claim_winnings(&user, &market_id, &token);
+    client.claim_winnings(&user, &market_id);
 
     // Second claim should fail
-    let result = client.try_claim_winnings(&user, &market_id, &token);
+    let result = client.try_claim_winnings(&user, &market_id);
     assert_eq!(result, Err(Ok(ErrorCode::AlreadyClaimed)));
 }
 
 #[test]
 fn test_claim_winnings_no_bet_placed() {
-    let (env, client, _admin, user, token) = setup_test_with_token();
+    let (env, client, _admin, _user, _token) = setup_test_with_token();
 
-    env.ledger().with_mut(|li| li.timestamp = 500);
+    env.ledger().set_timestamp(500);
 
-    let market_id = create_simple_market(&client, &env, &user, &token);
+    let other_user = Address::generate(&env);
+    let market_id = create_simple_market(&client, &env, &other_user, &_token);
 
     client.resolve_market(&market_id, &0);
 
-    let result = client.try_claim_winnings(&user, &market_id, &token);
+    let result = client.try_claim_winnings(&other_user, &market_id);
     assert_eq!(result, Err(Ok(ErrorCode::NoWinnings)));
 }
 
@@ -253,10 +257,10 @@ fn test_winnings_calculation_single_winner() {
     let (env, client, _admin, user1, token) = setup_test_with_token();
 
     let user2 = Address::generate(&env);
-    let token_client = token::StellarAssetClient::new(&env, &token);
-    token_client.mint(&user2, &100_000);
+    let token_client = token::Client::new(&env, &token);
+    token::StellarAssetClient::new(&env, &token).mint(&user2, &100_000);
 
-    env.ledger().with_mut(|li| li.timestamp = 500);
+    env.ledger().set_timestamp(500);
 
     let market_id = create_simple_market(&client, &env, &user1, &token);
 
@@ -270,7 +274,7 @@ fn test_winnings_calculation_single_winner() {
     client.resolve_market(&market_id, &0);
 
     let balance_before = token_client.balance(&user1);
-    let winnings = client.claim_winnings(&user1, &market_id, &token);
+    let winnings = client.claim_winnings(&user1, &market_id);
     let balance_after = token_client.balance(&user1);
 
     // User1 should get their 1000 back plus share of losing pool (minus fees)
@@ -284,11 +288,11 @@ fn test_winnings_calculation_multiple_winners() {
 
     let user2 = Address::generate(&env);
     let user3 = Address::generate(&env);
-    let token_client = token::StellarAssetClient::new(&env, &token);
-    token_client.mint(&user2, &100_000);
-    token_client.mint(&user3, &100_000);
+    let sac = token::StellarAssetClient::new(&env, &token);
+    sac.mint(&user2, &100_000);
+    sac.mint(&user3, &100_000);
 
-    env.ledger().with_mut(|li| li.timestamp = 500);
+    env.ledger().set_timestamp(500);
 
     let market_id = create_simple_market(&client, &env, &user1, &token);
 
@@ -302,8 +306,8 @@ fn test_winnings_calculation_multiple_winners() {
     // Resolve with outcome 0
     client.resolve_market(&market_id, &0);
 
-    let winnings1 = client.claim_winnings(&user1, &market_id, &token);
-    let winnings2 = client.claim_winnings(&user2, &market_id, &token);
+    let winnings1 = client.claim_winnings(&user1, &market_id);
+    let winnings2 = client.claim_winnings(&user2, &market_id);
 
     // User2 bet twice as much, should get twice the winnings
     assert!(winnings2 > winnings1);
@@ -317,7 +321,7 @@ fn test_referral_rewards_tracked() {
 
     let referrer = Address::generate(&env);
 
-    env.ledger().with_mut(|li| li.timestamp = 500);
+    env.ledger().set_timestamp(500);
 
     let market_id = create_simple_market(&client, &env, &user, &token);
 
@@ -325,7 +329,7 @@ fn test_referral_rewards_tracked() {
     client.place_bet(&user, &market_id, &0, &1000, &token, &Some(referrer.clone()));
 
     // Referrer should have pending rewards
-    let rewards = client.claim_referral_rewards(&referrer, &token);
+    let rewards = client.try_claim_referral_rewards(&referrer, &token);
     assert!(rewards.is_ok());
 }
 
@@ -333,7 +337,7 @@ fn test_referral_rewards_tracked() {
 fn test_bet_with_self_referral_rejected() {
     let (env, client, _admin, user, token) = setup_test_with_token();
 
-    env.ledger().with_mut(|li| li.timestamp = 500);
+    env.ledger().set_timestamp(500);
 
     let market_id = create_simple_market(&client, &env, &user, &token);
 

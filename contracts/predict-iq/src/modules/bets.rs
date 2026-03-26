@@ -111,7 +111,6 @@ pub fn claim_winnings(
     e: &Env,
     bettor: Address,
     market_id: u64,
-    token_address: Address,
 ) -> Result<i128, ErrorCode> {
     bettor.require_auth();
 
@@ -139,8 +138,8 @@ pub fn claim_winnings(
     // Calculate winnings (simplified - in production would calculate based on pool ratios)
     let winnings = bet.amount;
 
-    // Transfer winnings to bettor
-    let client = token::Client::new(e, &token_address);
+    // Transfer winnings to bettor using the market's trusted token address
+    let client = token::Client::new(e, &market.token_address);
     client.transfer(&e.current_contract_address(), &bettor, &winnings);
 
     // Remove bet record
@@ -157,7 +156,6 @@ pub fn withdraw_refund(
     e: &Env,
     bettor: Address,
     market_id: u64,
-    token_address: Address,
 ) -> Result<i128, ErrorCode> {
     bettor.require_auth();
 
@@ -176,8 +174,8 @@ pub fn withdraw_refund(
 
     let refund_amount = bet.amount;
 
-    // Transfer refund to bettor
-    let client = token::Client::new(e, &token_address);
+    // Transfer refund to bettor using the market's trusted token address
+    let client = token::Client::new(e, &market.token_address);
     client.transfer(&e.current_contract_address(), &bettor, &refund_amount);
 
     // Remove bet record
