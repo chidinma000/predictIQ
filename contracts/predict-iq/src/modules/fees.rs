@@ -25,7 +25,7 @@ pub fn get_base_fee(e: &Env) -> i128 {
 }
 
 pub fn set_base_fee(e: &Env, amount: i128) -> Result<(), ErrorCode> {
-    admin::require_admin(e)?;
+    admin::require_fee_admin(e)?;
     e.storage().persistent().set(&ConfigKey::BaseFee, &amount);
     bump_config_ttl(e, &ConfigKey::BaseFee);
     Ok(())
