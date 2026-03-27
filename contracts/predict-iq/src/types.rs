@@ -92,6 +92,11 @@ pub struct OracleConfig {
     pub min_responses: u32,          // Minimum oracle responses required (default: 1)
     pub max_staleness_seconds: u64,  // Max age of price data in seconds (default: 300)
     pub max_confidence_bps: u64,     // Max confidence interval in basis points (default: 200 = 2%)
+    pub oracle_address: Address,
+    pub feed_id: String,
+    pub min_responses: Option<u32>, // Optimized: None defaults to 1
+    pub max_staleness_seconds: u64, // Max age of price data in seconds
+    pub max_confidence_bps: u64,    // Max confidence interval in basis points
 }
 
 // Gas optimization constants
