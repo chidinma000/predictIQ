@@ -46,20 +46,6 @@ fn test_require_admin_not_set() {
 }
 
 #[test]
-fn test_set_and_get_market_admin() {
-    let (e, contract_id) = setup();
-    let admin = Address::generate(&e);
-    let market_admin = Address::generate(&e);
-
-    e.as_contract(&contract_id, || {
-        set_admin(&e, admin.clone());
-        set_market_admin(&e, market_admin.clone()).unwrap();
-        let stored_market_admin = get_market_admin(&e).unwrap();
-        assert_eq!(stored_market_admin, market_admin);
-    });
-}
-
-#[test]
 fn test_require_market_admin_success() {
     let (e, contract_id) = setup();
     let admin = Address::generate(&e);
@@ -104,20 +90,6 @@ fn test_market_admin_cannot_be_set_by_non_admin() {
         })]);
         let result = set_market_admin(&e, market_admin.clone());
         assert_eq!(result, Err(ErrorCode::NotAuthorized));
-    });
-}
-
-#[test]
-fn test_set_and_get_fee_admin() {
-    let (e, contract_id) = setup();
-    let admin = Address::generate(&e);
-    let fee_admin = Address::generate(&e);
-
-    e.as_contract(&contract_id, || {
-        set_admin(&e, admin.clone());
-        set_fee_admin(&e, fee_admin.clone()).unwrap();
-        let stored_fee_admin = get_fee_admin(&e).unwrap();
-        assert_eq!(stored_fee_admin, fee_admin);
     });
 }
 

@@ -33,13 +33,13 @@ pub fn set_market_admin(e: &Env, admin: Address) -> Result<(), ErrorCode> {
     Ok(())
 }
 
-pub fn get_market_admin(e: &Env) -> Option<Address> {
-    e.storage().persistent().get(&ConfigKey::MarketAdmin)
-}
-
 /// Require MarketAdmin role - for market operational tasks
 pub fn require_market_admin(e: &Env) -> Result<(), ErrorCode> {
-    let market_admin: Address = get_market_admin(e).ok_or(ErrorCode::NotAuthorized)?;
+    let market_admin: Address = e
+        .storage()
+        .persistent()
+        .get(&ConfigKey::MarketAdmin)
+        .ok_or(ErrorCode::NotAuthorized)?;
     market_admin.require_auth();
     Ok(())
 }
