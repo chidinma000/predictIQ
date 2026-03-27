@@ -6,6 +6,10 @@ mod modules;
 mod test;
 #[cfg(test)]
 mod query_tests;
+#[cfg(test)]
+mod test_tie_handling;
+#[cfg(test)]
+mod test_payout_mode_immutability;
 pub mod types;
 
 pub use errors::ErrorCode;
@@ -24,6 +28,10 @@ impl PredictIQ {
         base_fee: i128,
         guardians: Vec<crate::types::Guardian>,
     ) -> Result<(), ErrorCode> {
+        // Require the deployer's authorization to prevent front-running attacks.
+        // Only the account that deployed this contract can call initialize.
+        e.deployer().require_auth();
+
         if e.storage().persistent().has(&ConfigKey::Admin) {
             return Err(ErrorCode::AlreadyInitialized);
         }
@@ -34,7 +42,7 @@ impl PredictIQ {
 
         admin::set_admin(&e, admin);
         e.storage().persistent().set(&ConfigKey::BaseFee, &base_fee);
-        e.storage().persistent().set(
+        e.storage().instance().set(
             &ConfigKey::CircuitBreakerState,
             &CircuitBreakerState::Closed,
         );
@@ -120,7 +128,7 @@ impl PredictIQ {
         outcome: u32,
         token_address: Address,
     ) -> Result<i128, ErrorCode> {
-        crate::modules::bets::withdraw_refund(&e, bettor, market_id, token_address)
+        crate::modules::bets::withdraw_refund(&e, bettor, market_id, outcome, token_address)
     }
 
     pub fn get_market(e: Env, id: u64) -> Option<crate::types::Market> {
@@ -164,6 +172,14 @@ impl PredictIQ {
 
     pub fn get_base_fee(e: Env) -> i128 {
         crate::modules::fees::get_base_fee(&e)
+    }
+
+    pub fn set_fee_admin(e: Env, fee_admin: Address) -> Result<(), ErrorCode> {
+        crate::modules::admin::set_fee_admin(&e, fee_admin)
+    }
+
+    pub fn get_fee_admin(e: Env) -> Option<Address> {
+        crate::modules::admin::get_fee_admin(&e)
     }
 
     pub fn get_revenue(e: Env, token: Address) -> i128 {
@@ -243,6 +259,10 @@ impl PredictIQ {
 
     pub fn unpause(e: Env) -> Result<(), ErrorCode> {
         crate::modules::circuit_breaker::unpause(&e)
+    }
+
+    pub fn set_governance_token(e: Env, token: Address) -> Result<(), ErrorCode> {
+        crate::modules::admin::set_governance_token(&e, token)
     }
 
     pub fn get_resolution_metrics(
@@ -336,6 +356,11 @@ impl PredictIQ {
         crate::modules::governance::set_timelock_duration(&e, seconds)
     }
 
+    /// Issue #13: Returns the currently active timelock duration in seconds.
+    pub fn get_timelock_duration(e: Env) -> u64 {
+        crate::modules::governance::get_timelock_duration(&e)
+    }
+
     /// Issue #47: Permissionless prune after grace period.
     pub fn prune_market(e: Env, market_id: u64) -> Result<(), ErrorCode> {
         crate::modules::markets::prune_market(&e, market_id)
@@ -352,5 +377,10 @@ impl PredictIQ {
     /// Emergency pause triggered by 2/3 Guardian majority (community panic override)
     pub fn emergency_pause(e: Env, voter: Address) -> Result<(), ErrorCode> {
         crate::modules::governance::emergency_pause(&e, voter)
+    }
+
+    /// Get the accurate bet count for a specific outcome (analytics)
+    pub fn count_bets_for_outcome(e: Env, market_id: u64, outcome: u32) -> u32 {
+        crate::modules::markets::count_bets_for_outcome(&e, market_id, outcome)
     }
 }
