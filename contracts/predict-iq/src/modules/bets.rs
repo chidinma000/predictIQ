@@ -37,6 +37,24 @@ pub enum DataKey {
     Bet(u64, Address, u32),         // market_id, bettor, outcome
     Claimed(u64, Address),          // market_id, bettor — set after claim
     BetReferrer(u64, Address, u32), // market_id, bettor, outcome — referrer at bet time
+    BannedReferrer(Address),        // Issue #190: addresses banned from receiving referral rewards
+}
+
+/// Issue #190: Admin-only — ban an address from acting as a referrer.
+pub fn ban_referrer(e: &Env, referrer: Address) -> Result<(), ErrorCode> {
+    crate::modules::admin::require_admin(e)?;
+    e.storage()
+        .persistent()
+        .set(&DataKey::BannedReferrer(referrer), &true);
+    Ok(())
+}
+
+/// Issue #190: Returns true if the address is on the referrer ban list.
+pub fn is_referrer_banned(e: &Env, referrer: &Address) -> bool {
+    e.storage()
+        .persistent()
+        .get::<_, bool>(&DataKey::BannedReferrer(referrer.clone()))
+        .unwrap_or(false)
 }
 
 /// Extend the TTL of a bet record to BET_TTL_HIGH_THRESHOLD.
@@ -67,6 +85,10 @@ pub fn place_bet(
     // Reject self-referral
     if let Some(ref r) = referrer {
         if r == &bettor {
+            return Err(ErrorCode::InvalidReferrer);
+        }
+        // Issue #190: Reject banned/blacklisted referrers
+        if is_referrer_banned(e, r) {
             return Err(ErrorCode::InvalidReferrer);
         }
     }

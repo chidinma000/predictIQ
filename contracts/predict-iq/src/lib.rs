@@ -392,6 +392,11 @@ impl PredictIQ {
         crate::modules::bets::set_minimum_bet_amount(&e, amount)
     }
 
+    /// Issue #190: Admin-only — ban an address from acting as a referrer.
+    pub fn ban_referrer(e: Env, referrer: Address) -> Result<(), ErrorCode> {
+        crate::modules::bets::ban_referrer(&e, referrer)
+    }
+
     /// Emergency pause triggered by 2/3 Guardian majority (community panic override)
     pub fn emergency_pause(e: Env, voter: Address) -> Result<(), ErrorCode> {
         crate::modules::governance::emergency_pause(&e, voter)
