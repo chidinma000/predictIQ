@@ -94,8 +94,10 @@ impl PredictIQ {
         crate::modules::bets::claim_winnings(&e, bettor, market_id)
     }
 
-    pub fn withdraw_refund(e: Env, bettor: Address, market_id: u64) -> Result<i128, ErrorCode> {
-        crate::modules::cancellation::withdraw_refund(&e, bettor, market_id, 0)
+    /// Single canonical entry point for user refunds on cancelled markets.
+    /// `outcome` identifies which outcome position to refund; call once per outcome.
+    pub fn withdraw_refund(e: Env, bettor: Address, market_id: u64, outcome: u32) -> Result<i128, ErrorCode> {
+        crate::modules::cancellation::withdraw_refund(&e, bettor, market_id, outcome)
     }
 
     /// #401: Single canonical admin cancellation entrypoint.

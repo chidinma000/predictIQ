@@ -288,66 +288,6 @@ pub fn claim_winnings(e: &Env, bettor: Address, market_id: u64) -> Result<i128, 
     )
 }
 
-pub fn withdraw_refund(
-    e: &Env,
-    bettor: Address,
-    market_id: u64,
-    outcome: u32,
-    token_address: Address,
-) -> Result<i128, ErrorCode> {
-    bettor.require_auth();
-
-    // Issue #93: Refunds are outbound token movements and must respect the
-    // circuit breaker just like place_bet. A paused contract must not allow
-    // any token egress — including refunds — to prevent exploitation during
-    // an active incident.
-    crate::modules::circuit_breaker::require_not_paused_for_high_risk(e)?;
-
-    let mut market = markets::get_market(e, market_id).ok_or(ErrorCode::MarketNotFound)?;
-
-    if market.status != MarketStatus::Cancelled {
-        return Err(ErrorCode::MarketNotActive);
-    }
-
-    if token_address != market.token_address {
-        return Err(ErrorCode::InvalidBetAmount);
-    }
-
-    let bet_key = DataKey::Bet(market_id, bettor.clone(), outcome);
-
-    // Issue #100: refresh TTL before read — cancelled markets may sit idle
-    // for extended periods before bettors claim their refunds.
-    bump_bet_ttl(e, &bet_key);
-
-    let bet: Bet = e
-        .storage()
-        .persistent()
-        .get(&bet_key)
-        .ok_or(ErrorCode::MarketNotFound)?;
-
-    let refund_amount = bet.amount;
-    let bet_outcome = bet.outcome;
-
-    // Update market accounting to maintain accuracy
-    market.total_staked = market.total_staked.saturating_sub(refund_amount);
-    let outcome_stake = market.outcome_stakes.get(bet_outcome).unwrap_or(0);
-    market
-        .outcome_stakes
-        .set(bet_outcome, outcome_stake.saturating_sub(refund_amount));
-    markets::update_market(e, market);
-
-    internal_claim_amount(
-        e,
-        market_id,
-        &bettor,
-        &token_address,
-        refund_amount,
-        &bet_key,
-        None,
-        true,
-    )
-}
-
 pub fn get_minimum_bet_amount(e: &Env) -> i128 {
     e.storage()
         .persistent()
