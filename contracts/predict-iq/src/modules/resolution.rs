@@ -129,7 +129,7 @@ pub fn finalize_resolution(e: &Env, market_id: u64) -> Result<(), ErrorCode> {
             }
 
             // No dispute filed, finalize with oracle result
-            let winning_outcome = market.winning_outcome.unwrap();
+            let winning_outcome = market.winning_outcome.ok_or(ErrorCode::MarketNotResolved)?;
             market.status = MarketStatus::Resolved;
             market.resolved_at = Some(e.ledger().timestamp());
             markets::update_market(e, market);
